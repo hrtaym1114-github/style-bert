@@ -1,0 +1,54 @@
+# ベースイメージ
+# CUDA 11.8 + cuDNN 8 + Ubuntu 22.04（NVIDIA公式）
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+
+# 作業ディレクトリを設定
+WORKDIR /app
+
+# タイムゾーンを日本に固定し、tzdataの非対話インストール
+ENV TZ=Asia/Tokyo
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    tzdata \
+    && ln -fs /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
+    && dpkg-reconfigure -f noninteractive tzdata \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# 必要最小限のツールだけインストール
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    git \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    gcc \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python3.11インストール（Ubuntu 22.04標準は3.10のため）
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa -y && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3.11 python3.11-distutils && \
+    rm -rf /var/lib/apt/lists/*
+
+# python3/pipのデフォルトを3.11に
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+
+# リポジトリをクローン
+RUN git clone https://github.com/litagin02/Style-Bert-VITS2.git /app/Style-Bert-VITS2
+
+# 依存関係のインストールと初期化
+WORKDIR /app/Style-Bert-VITS2
+
+RUN python3.11 -m pip install --no-cache-dir --upgrade pip && \
+    python3.11 -m pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 && \
+    python3.11 -m pip install --no-cache-dir pyyaml && \
+    python3.11 -m pip install --no-cache-dir -r requirements.txt
+
+# 必要に応じてinitialize.pyを実行
+RUN python3.11 initialize.py
